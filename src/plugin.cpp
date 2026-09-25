@@ -9,6 +9,7 @@
 #include "appid.h"
 #include "authproxy.h"
 #include "gametick.h"
+#include "steaminit.h"
 #include "workshop.h"
 #include "platform.h"
 
@@ -40,6 +41,9 @@ public:
 	{
 		appid::Apply();
 		workshop::Apply();
+		// Before authproxy::Init, which only starts the validator itself if
+		// this could not be installed.
+		steaminit::Install( &authproxy::OnEngineSteamInit );
 		authproxy::Init();
 
 		// Where the per-frame work actually comes from; see gametick.h for why
@@ -51,6 +55,7 @@ public:
 	virtual void Unload()
 	{
 		gametick::Remove();
+		steaminit::Remove();
 		authproxy::Shutdown();
 		workshop::Restore();
 		appid::Restore();

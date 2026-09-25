@@ -135,25 +135,15 @@ bool TryStart()
 	if ( !pClient )
 		return false;
 
-	// Two ways in, and which one works depends on the platform. CreateSteamPipe
-	// is the obvious one and is what Windows takes, where steamclient has a
-	// Steam client process to connect the pipe to. A headless Linux server has
-	// no Steam client and it returns 0 there. CreateLocalUser is the game
-	// server bootstrap -- handed a zeroed pipe handle it creates the pipe as
-	// well as the user, which is how SteamGameServer_Init gets one.
-	s_hPipe = pClient->CreateSteamPipe();
-	if ( s_hPipe )
-		s_hUser = pClient->CreateLocalUser( &s_hPipe, steam::kEAccountTypeGameServer );
+	plat::Log( "csgo-multi-appid: opening the validator's Steam session (attempt %d)\n", s_nAttempts );
 
-	if ( !s_hUser )
-	{
-		if ( s_hPipe )
-		{
-			pClient->BReleaseSteamPipe( s_hPipe );
-			s_hPipe = 0;
-		}
-		s_hUser = pClient->CreateLocalUser( &s_hPipe, steam::kEAccountTypeGameServer );
-	}
+	// CreateLocalUser is the game server bootstrap: it opens the process's own
+	// "Steam3Master-<pid>" pipe and overwrites the handle it is given, which is
+	// how SteamGameServer_Init gets one. CreateSteamPipe would connect to the
+	// Steam client's global "Steam3Master" pipe instead, which a server has no
+	// use for, and whose handle CreateLocalUser would discard anyway.
+	s_hPipe = 0;
+	s_hUser = pClient->CreateLocalUser( &s_hPipe, steam::kEAccountTypeGameServer );
 
 	if ( !s_hPipe || !s_hUser )
 	{
@@ -169,6 +159,9 @@ bool TryStart()
 		Stop();
 		return false;
 	}
+
+	plat::Log( "csgo-multi-appid: validator Steam session open (pipe %d, user %d)\n",
+			   (int)s_hPipe, (int)s_hUser );
 
 	s_pServer = s_Steam.GameServer( s_hUser, s_hPipe );
 	if ( !s_pServer )

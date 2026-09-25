@@ -20,6 +20,7 @@
 #include "platform.h"
 #include "presence.h"
 #include "steam_min.h"
+#include "steaminit.h"
 #include "validator.h"
 
 #include <cstring>
@@ -216,6 +217,12 @@ bool InstallHook( steam::ISteamGameServer *pServer )
 	return true;
 }
 
+void StartValidator()
+{
+	if ( !s_bValidatorStarted && validator::Start() )
+		s_bValidatorStarted = true;
+}
+
 void StopValidator()
 {
 	if ( !s_bValidatorStarted )
@@ -238,9 +245,15 @@ void Setup()
 
 	if ( !s_bValidatorStarted )
 	{
-		if ( !validator::Start() )
+		// With the init hook in, the validator starts from there and nowhere
+		// else: any later and CreateLocalUser can deadlock against steamclient's
+		// own thread (see steaminit.h).
+		if ( steaminit::Installed() )
 			return;
-		s_bValidatorStarted = true;
+
+		StartValidator();
+		if ( !s_bValidatorStarted )
+			return;
 	}
 
 	InstallHook( (steam::ISteamGameServer *)validator::Interface() );
@@ -332,6 +345,15 @@ void Init()
 	// SV_Think returns before it reaches g_pServerPluginHandler->GameFrame, so
 	// on a server nobody has joined yet GameFrame may never run at all -- and
 	// that is exactly the server a client is about to connect to.
+	Setup();
+}
+
+void OnEngineSteamInit()
+{
+	if ( s_bBroken )
+		return;
+
+	StartValidator();
 	Setup();
 }
 
